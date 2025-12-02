@@ -1,7 +1,10 @@
-import React, { Suspense, useEffect, useRef, useState } from 'react'
+import React, { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, useGLTF } from '@react-three/drei'
+import { Box3, Vector3 } from 'three'
 import './App.css'
+
+// Fly around the mountain 
 
 function setMountainFavicon() {
   const size = 64
@@ -61,10 +64,18 @@ function setMountainFavicon() {
  * Mont Vallon terrain model.
  * Export as public/models/mont-vallon.glb
  */
-function MontVallonModel(props) {
+function MontVallonModel({ onBounds, ...props }) {
   const { scene } = useGLTF('/models/mont-vallon.glb')
-  // Adjust transform to taste once you see it
-  return <primitive object={scene} {...props} />
+  const ref = useRef()
+
+  useLayoutEffect(() => {
+    if (!ref.current) return
+    const box = new Box3().setFromObject(ref.current)
+    const center = box.getCenter(new Vector3())
+    onBounds?.([center.x, center.y, center.z])
+  }, [onBounds])
+
+  return <primitive ref={ref} object={scene} {...props} />
 }
 
 useGLTF.preload('/models/mont-vallon.glb')
@@ -93,9 +104,9 @@ function FlyCamera({ target = [0, 0.5, 0], speed = 0.15, fov = 55 }) {
     const height = 12 + Math.sin(t.current * 0.4) * 3
 
     camera.position.set(
-      Math.cos(orbitAngle) * radius,
-      height,
-      Math.sin(orbitAngle) * radius
+      target[0] + Math.cos(orbitAngle) * radius,
+      target[1] + height,
+      target[2] + Math.sin(orbitAngle) * radius
     )
     camera.lookAt(target[0], target[1], target[2])
   })
@@ -104,6 +115,8 @@ function FlyCamera({ target = [0, 0.5, 0], speed = 0.15, fov = 55 }) {
 }
 
 function Scene({ flySpeed, perspective }) {
+  const [target, setTarget] = useState([0, 0.5, 0])
+
   return (
     <>
       {/* Background & distant haze */}
@@ -140,6 +153,7 @@ function Scene({ flySpeed, perspective }) {
           position={[0, -2.5, 0]}
           rotation={[0, Math.PI * 0.25, 0]}
           scale={3.5}
+          onBounds={setTarget}
         />
       </Suspense>
 
@@ -147,14 +161,14 @@ function Scene({ flySpeed, perspective }) {
       <Environment preset="sunset" />
 
       {/* Animated camera */}
-      <FlyCamera speed={flySpeed} fov={perspective} />
+      <FlyCamera target={target} speed={flySpeed} fov={perspective} />
     </>
   )
 }
 
 export default function App() {
   const [flySpeed, setFlySpeed] = useState(0.15)
-  const [perspective, setPerspective] = useState(55)
+  const [perspective, setPerspective] = useState(75)
 
   useEffect(() => {
     setMountainFavicon()
@@ -165,7 +179,7 @@ export default function App() {
       <Canvas
         className="mv-canvas"
         shadows
-        camera={{ position: [0, 10, 30], fov: perspective, near: 0.1, far: 200 }}
+        camera={{ position: [0, 50, 150], fov: perspective, near: 0.1, far: 200 }}
       >
         <Scene flySpeed={flySpeed} perspective={perspective} />
       </Canvas>
@@ -198,8 +212,8 @@ export default function App() {
               <input
                 id="mv-perspective"
                 type="range"
-                min="45"
-                max="75"
+                min="50"
+                max="100"
                 step="1"
                 value={perspective}
                 onChange={(e) => setPerspective(parseFloat(e.target.value))}
